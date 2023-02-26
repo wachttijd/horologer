@@ -12,13 +12,20 @@ type TimeResponse struct {
 }
 
 func TimeHandler(w http.ResponseWriter, r *http.Request) {
-	response := TimeResponse{
-		Timestamp: time.Now().Unix(),
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
 	}
 
-	err := json.NewEncoder(w).Encode(response)
+	w.Header().Set("Content-Type", "application/json")
+
+	err := json.NewEncoder(w).Encode(TimeResponse{
+		Timestamp: time.Now().Unix(),
+	})
+
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		w.WriteHeader(http.StatusInternalServerError)
 		log.Println(err)
+		return
 	}
 }

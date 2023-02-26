@@ -1,8 +1,8 @@
 package models
 
 type Strongbox struct {
-	AvailableUntil string
-	AvailableAfter string
-	DecryptionKey  string
-	Data           string
+	GeneralId      string
+	AvailableAfter []byte
+	DecryptionKey  []byte
+	Data           []byte
 }

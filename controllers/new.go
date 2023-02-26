@@ -1,20 +1,24 @@
 package controllers
 
 import (
+	"encoding/base64"
+	"encoding/json"
 	"errors"
+	"horologer/cryptocode"
+	"horologer/database"
+	"horologer/models"
+	"log"
 	"net/http"
 	"strconv"
 )
 
 type NewRequestData struct {
 	AvailableAfter int64
-	AvailableUntil int64
 	Text           string
 }
 
 type NewResponse struct {
-	RetrieveKey   string `json:"retrieve_key"`
-	EncryptedText string `json:"encrypted_text"`
+	RetrieveKey string `json:"retrieve_key"`
 }
 
 func ExtractNewRequestData(r *http.Request) (NewRequestData, error) {
@@ -25,10 +29,9 @@ func ExtractNewRequestData(r *http.Request) (NewRequestData, error) {
 	}
 
 	AvailableAfter := r.FormValue("available_after")
-	AvailableUntil := r.FormValue("available_until")
 	Text := r.FormValue("text")
 
-	if AvailableAfter == "" || AvailableUntil == "" || Text == "" {
+	if AvailableAfter == "" || Text == "" {
 		return NewRequestData{}, errors.New("missing required field(s)")
 	}
 
@@ -38,36 +41,104 @@ func ExtractNewRequestData(r *http.Request) (NewRequestData, error) {
 		return NewRequestData{}, errors.New("invalid 'available_after' field format")
 	}
 
-	AvailableUntilInt, err := strconv.ParseInt(AvailableUntil, 10, 64)
-
-	if err != nil {
-		return NewRequestData{}, errors.New("invalid 'available_until' field format")
-	}
-
 	return NewRequestData{
 		AvailableAfter: AvailableAfterInt,
-		AvailableUntil: AvailableUntilInt,
-		Text: Text,
+		Text:           Text,
 	}, nil
 }
 
-func NewHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		w.WriteHeader(http.StatusMethodNotAllowed)
-		return
-	}
-
+func NewStrongboxHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Header.Get("Content-Type") != "application/x-www-form-urlencoded" {
 		w.WriteHeader(http.StatusUnsupportedMediaType)
 		return
 	}
 
-	// ExtractedData, err := ExtractNewRequestData(r)
+	extractedData, err := ExtractNewRequestData(r)
 
-	// if err != nil {
-	// 	http.Error(w, err.Error(), http.StatusBadRequest)
-	// 	return
-	// }
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 
-	// ...
+	newInternalKey, err := cryptocode.SecureRandomBytes(32)
+
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		log.Println(err)
+		return
+	}
+
+	newUserKey, err := cryptocode.SecureRandomBytes(32)
+
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		log.Println(err)
+		return
+	}
+
+	newGeneralId, err := cryptocode.ID()
+
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		log.Println(err)
+		return
+	}
+
+	newAvailableAfter, err := cryptocode.EncryptAES(
+		newUserKey,
+		cryptocode.Int64ToBytes(extractedData.AvailableAfter),
+	)
+
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		log.Println(err)
+		return
+	}
+
+	newData, err := cryptocode.EncryptAES(
+		newInternalKey,
+		[]byte(extractedData.Text),
+	)
+
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		log.Println(err)
+		return
+	}
+
+	newEncryptedInternalKey, err := cryptocode.EncryptAES(
+		newUserKey,
+		newInternalKey,
+	)
+
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		log.Println(err)
+		return
+	}
+
+	err = database.AddNewStrongbox(models.Strongbox{
+		GeneralId:      newGeneralId,
+		AvailableAfter: newAvailableAfter,
+		DecryptionKey:  newEncryptedInternalKey,
+		Data:           newData,
+	})
+
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		log.Println(err)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+
+	err = json.NewEncoder(w).Encode(NewResponse{
+		RetrieveKey: newGeneralId + base64.URLEncoding.EncodeToString(newUserKey),
+	})
+
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		log.Println(err)
+		return
+	}
 }
