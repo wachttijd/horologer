@@ -37,12 +37,14 @@ func AddNewStrongbox(box models.Strongbox) error {
 			general_id,
 			available_after,
 			decryption_key,
+			integrity,
 			data
-		) VALUES (?, ?, ?, ?)
+		) VALUES (?, ?, ?, ?, ?)
 	`,
 		box.GeneralId,
 		box.AvailableAfter,
 		box.DecryptionKey,
+		box.Integrity,
 		box.Data,
 	)
 
@@ -57,6 +59,7 @@ func GetStrongbox(generalId string) (models.Strongbox, error) {
 			general_id,
 			available_after,
 			decryption_key,
+			integrity,
 			data
 		FROM
 			strongboxes
@@ -66,8 +69,14 @@ func GetStrongbox(generalId string) (models.Strongbox, error) {
 		&box.GeneralId,
 		&box.AvailableAfter,
 		&box.DecryptionKey,
+		&box.Integrity,
 		&box.Data,
 	)
 
 	return box, err
+}
+
+func DeleteStrongbox(generalId string) error {
+	_, err := Db.Exec(`DELETE FROM strongboxes WHERE general_id = ?`, generalId)
+	return err
 }

@@ -3,41 +3,14 @@ package controllers
 import (
 	"crypto/sha256"
 	"database/sql"
-	"encoding/base64"
 	"encoding/hex"
-	"encoding/json"
-	"errors"
 	"horologer/cryptocode"
 	"horologer/database"
 	"log"
 	"net/http"
-	"net/url"
-	"time"
 )
 
-type RetrieveResponse struct {
-	Text string `json:"text"`
-}
-
-func ParseRetrieveKey(retrieveKey string) (string, []byte, error) {
-	retrieveKey, err := url.QueryUnescape(retrieveKey)
-
-	if err != nil || len(retrieveKey) <= 20 {
-		return "", nil, errors.New("invalid retrieve key")
-	}
-
-	keyBytes, err := base64.URLEncoding.DecodeString(retrieveKey[20:])
-
-	if err != nil {
-		return "", nil, errors.New("invalid retrieve key")
-	}
-
-	return retrieveKey[:20], keyBytes, nil
-}
-
-func RetrieveStrongboxHandler(w http.ResponseWriter, r *http.Request) {
-	currentTimestamp := time.Now().Unix()
-
+func DeleteStrongboxHandler(w http.ResponseWriter, r *http.Request) {
 	retrieveKey := r.URL.Query().Get("key")
 
 	if retrieveKey == "" {
@@ -63,22 +36,6 @@ func RetrieveStrongboxHandler(w http.ResponseWriter, r *http.Request) {
 			log.Println(err)
 			return
 		}
-	}
-
-	availableAfter, err := cryptocode.DecryptAES(
-		userKey,
-		box.AvailableAfter,
-	)
-
-	if err != nil {
-		http.Error(w, "decryption failed, the given key might be invalid", http.StatusForbidden)
-		log.Println(err)
-		return
-	}
-
-	if cryptocode.BytesToInt64(availableAfter) >= currentTimestamp {
-		http.Error(w, "time condition is not met", http.StatusForbidden)
-		return
 	}
 
 	decryptionKey, err := cryptocode.DecryptAES(
@@ -122,15 +79,11 @@ func RetrieveStrongboxHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-
-	err = json.NewEncoder(w).Encode(RetrieveResponse{
-		Text: string(decryptedText),
-	})
-
-	if err != nil {
+	if err := database.DeleteStrongbox(generalId); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		log.Println(err)
 		return
 	}
+
+	w.WriteHeader(http.StatusNoContent)
 }

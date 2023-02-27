@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -106,6 +107,19 @@ func NewStrongboxHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	dataHash := sha256.Sum256([]byte(extractedData.Text))
+
+	newDataIntegrity, err := cryptocode.EncryptAES(
+		newInternalKey,
+		dataHash[:],
+	)
+
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		log.Println(err)
+		return
+	}
+
 	newEncryptedInternalKey, err := cryptocode.EncryptAES(
 		newUserKey,
 		newInternalKey,
@@ -121,6 +135,7 @@ func NewStrongboxHandler(w http.ResponseWriter, r *http.Request) {
 		GeneralId:      newGeneralId,
 		AvailableAfter: newAvailableAfter,
 		DecryptionKey:  newEncryptedInternalKey,
+		Integrity:      newDataIntegrity,
 		Data:           newData,
 	})
 

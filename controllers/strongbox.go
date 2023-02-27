@@ -8,8 +8,10 @@ func StrongboxHandler(w http.ResponseWriter, r *http.Request) {
 		NewStrongboxHandler(w, r)
 	case http.MethodGet:
 		RetrieveStrongboxHandler(w, r)
+	case http.MethodDelete:
+		DeleteStrongboxHandler(w, r)
 	default:
-		w.Header().Set("Allow", "GET, POST")
+		w.Header().Set("Allow", "GET, POST, DELETE")
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	}
