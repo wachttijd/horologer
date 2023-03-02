@@ -15,7 +15,9 @@ The server provides the following functionalities:
 1. Make sure you have GoLang installed
 2. Clone the repository
 3. Navigate to the project directory
-4. Run the server using the command `go run .`
+4. Load the MySQL database from the `horologer.sql`
+5. Enter the relevant data into the `config.yml`
+6. Run the server using the command `go run .`
 
 ## Usage
 
